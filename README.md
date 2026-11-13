@@ -1,233 +1,136 @@
-# Heap Data Structure in C
+# Heap in C
 
-[![C](https://img.shields.io/badge/C-99-blue.svg)](https://en.wikipedia.org/wiki/C99)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![C99](https://img.shields.io/badge/C-C99-blue.svg)](https://en.wikipedia.org/wiki/C99)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A general-purpose heap implementation in C, built only on the standard library. It supports min heaps and max heaps, the usual heap operations, and heap sort.
+English | [中文](README_cn.md)
 
-## Contents
+## Introduction
 
-- [Features](#features)
-- [Project Structure](#project-structure)
-- [Quick Start](#quick-start)
-- [API](#api)
-- [How It Works](#how-it-works)
-- [Sample Output](#sample-output)
-- [Author](#author)
+This started as a data structure exercise. The goal was not just to demo a few operations in `main`, but to build a small library that can be dropped into another project: the interface lives in `heap.h`, the implementation in `heap.c`, and min heap and max heap share the same code with only the comparison direction changed.
 
-## Features
+What it supports:
 
-- **Min and max heap** — both modes supported
-- **Dynamic array** — grows automatically as elements are added
-- **O(n) build** — uses Floyd's heap construction
-- **Heap sort** — in-place, ascending or descending
-- **Tree printing** — prints the heap as a tree for inspection
-- **Standard C only** — no dependencies beyond the C standard library
+- Min heap and max heap
+- Dynamic growth, capacity doubles when needed, amortized O(1) per push
+- Build from an array with Floyd's algorithm, O(n)
+- In-place heap sort, ascending or descending
+- Pop, peek, and remove by index
+- Level-order and tree printing for debugging
+- Safe handling of empty heaps, `NULL`, and out-of-range indexes
 
-## Quick Start
+Callers only depend on `heap.h`:
 
-### Build and run
-
-```bash
-# GCC
-gcc -o heap heap.c
-
-# Run
-./heap
+```mermaid
+flowchart LR
+    A[demo.c] --> B[heap.h]
+    C[test_heap.c] --> B
+    B --> D[heap.c]
+    D --> E[dynamic array]
 ```
 
-Use your actual source filename if it differs from `heap.c`.
+Push and pop are the two core operations:
 
-### Basic usage
+```mermaid
+flowchart TD
+    A[Push] --> B[Append at the end]
+    B --> C{Higher priority than parent?}
+    C -->|Yes| D[Swap with parent]
+    D --> C
+    C -->|No| E[Done]
+
+    F[Pop] --> G[Move last element to the root]
+    G --> H[Decrease size]
+    H --> I[Sift down from the root]
+```
+
+## Dependencies
+
+No third-party dependency. All you need is a C99 compiler.
+
+![C99](https://img.shields.io/badge/C-C99-blue)
+![GCC](https://img.shields.io/badge/GCC-15.2-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+I built it with GCC 15.2 and `-std=c99 -Wall -Wextra`, with no warnings. Nothing here is platform specific, so Clang should work too, though I have not verified it point by point.
+
+## Project Structure
+
+```
+.
+├── heap.h        public interface
+├── heap.c        implementation
+├── demo.c        demo program
+├── test_heap.c   tests
+├── LICENSE
+├── README.md     English
+└── README_cn.md  Chinese
+```
+
+## Usage
+
+Two gcc commands are enough. No Makefile or CMake needed.
+
+```bash
+# demo
+gcc -std=c99 -O2 -Wall -Wextra -o demo demo.c heap.c
+./demo
+
+# tests
+gcc -std=c99 -O2 -Wall -Wextra -o test_heap test_heap.c heap.c
+./test_heap
+```
+
+On Windows the output files are `demo.exe` and `test_heap.exe`; run them from PowerShell or CMD. There are 7 test groups, and the process exits with 0 when all of them pass.
+
+Basic usage:
 
 ```c
-#include <stdio.h>
+#include "heap.h"
 
-// Create a min heap
-Heap* minHeap = heapCreate(4, MIN_HEAP);
+Heap *h = heap_create(0, MIN_HEAP);  // 0 means: allocate on first push.
+heap_push(h, 5);
+heap_push(h, 3);
+heap_push(h, 8);
 
-// Push elements
-heapPush(minHeap, 5);
-heapPush(minHeap, 3);
-heapPush(minHeap, 8);
-
-// Peek at the top
 int top;
-heapPeek(minHeap, &top);
-printf("top: %d\n", top);  // prints: top: 3
+heap_peek(h, &top);  // top = 3
 
-// Pop the top
-int val;
-heapPop(minHeap, &val);
+int value;
+heap_pop(h, &value); // value = 3
 
-// Destroy the heap
-heapDestroy(minHeap);
+heap_destroy(h);
 ```
 
-## API
+Queries return 0 or `false` when `heap` is `NULL`; mutating calls return `false`. `out_value` may be `NULL` if you only care whether the operation succeeded.
 
-### Data structures
+| Function | What it does | Time |
+| ---------------------------------------- | ------------------------------- | ---------- |
+| `heap_create(capacity, type)` | Create a heap, `capacity` may be 0 | O(1) |
+| `heap_destroy(heap)` | Free the heap | O(1) |
+| `heap_push(heap, value)` | Insert a value | O(log n) |
+| `heap_pop(heap, out_value)` | Remove and return the top | O(log n) |
+| `heap_peek(heap, out_value)` | Read the top | O(1) |
+| `heap_remove_at(heap, index, out_value)` | Remove the element at an index | O(log n) |
+| `heap_size(heap)` | Number of elements | O(1) |
+| `heap_capacity(heap)` | Current capacity | O(1) |
+| `heap_is_empty(heap)` | Whether the heap is empty | O(1) |
+| `heap_type(heap)` | Heap type | O(1) |
+| `heap_build(arr, n, type)` | Build from an array | O(n) |
+| `heap_print(heap)` | Print in level order | O(n) |
+| `heap_print_tree(heap)` | Print as a tree | O(n) |
+| `heap_sort(arr, n, ascending)` | Sort an array in place | O(n log n) |
 
-```c
-typedef enum {
-    MIN_HEAP,   // parent <= children
-    MAX_HEAP    // parent >= children
-} HeapType;
+## Contributing
 
-typedef struct {
-    int* data;          // element array
-    int size;           // current element count
-    int capacity;       // array capacity
-    HeapType type;      // heap type
-} Heap;
-```
+Open an issue if you find a bug. Include the input that reproduces it and your compiler version.
 
-### Functions
-
-| Function | Description | Time complexity |
-| ---------------------------------- | ---------------- | ---------- |
-| `heapCreate(capacity, type)` | Create a heap | O(1) |
-| `heapDestroy(h)` | Destroy a heap | O(1) |
-| `heapPush(h, value)` | Push an element | O(log n) |
-| `heapPop(h, outValue)` | Pop the top | O(log n) |
-| `heapPeek(h, outValue)` | Peek at the top | O(1) |
-| `heapSize(h)` | Get the element count | O(1) |
-| `heapIsEmpty(h)` | Check whether the heap is empty | O(1) |
-| `heapBuild(arr, n, type)` | Build a heap from an array | O(n) |
-| `heapRemoveAt(h, index, outValue)` | Remove the element at an index | O(log n) |
-| `heapPrint(h)` | Print the heap (level order) | O(n) |
-| `heapPrintTree(h)` | Print the heap as a tree | O(n) |
-| `heapSort(arr, n, ascending)` | Heap sort | O(n log n) |
-
-## How It Works
-
-### Heap property
-
-A heap is a complete binary tree with one extra rule:
-
-- **Min heap**: every node is less than or equal to its children
-- **Max heap**: every node is greater than or equal to its children
-
-### Core operations
-
-#### 1. Heapify up
-
-After a push, move the new element up until the heap property holds:
-
-```mermaid
-flowchart TD
-    A[Append element at the end] --> B{Current node > parent?}
-    B -->|Yes| C[Swap with parent]
-    C --> D[Move to parent position]
-    D --> B
-    B -->|No| E[Done]
-```
-
-#### 2. Heapify down
-
-After removing the top, move the last element down from the root:
-
-```mermaid
-flowchart TD
-    A[Move last element to the root] --> B[Find the highest-priority child]
-    C{Current node < highest-priority child?}
-    C -->|Yes| D[Swap with child]
-    D --> E[Move to child position]
-    E --> B
-    C -->|No| F[Done]
-    B --> C
-```
-
-#### 3. Floyd's build
-
-Start at the last non-leaf node and heapify down, working bottom-up:
-
-```
-Complexity:
-- Nodes on level h need 0 adjustments
-- Nodes on level h-1 need at most 1
-- ...
-- Nodes on level 0 need at most h
-
-Total: T(n) = O(n)
-```
-
-### Complexity
-
-| Operation | Time | Space |
-| -------- | ---------- | ---------- |
-| Push | O(log n) | O(1) |
-| Pop | O(log n) | O(1) |
-| Peek | O(1) | O(1) |
-| Build | O(n) | O(1) |
-| Heap sort | O(n log n) | O(1) |
-
-## Sample Output
-
-```bash
-C:\Users\anjuxi\Desktop\heap>a.exe
-=== Heap Test ===
-
-[Min heap]
-Insert order: 5 3 8 1 9 2 7 4 6
-MinHeap (size=9, capacity=16): 1 3 2 4 9 8 7 5 6
-
-MinHeap Tree Structure:
-        1
-      3  2
-  4  9  8  7
-  5  6
-
-Pop order: 1 2 3 4 5 6 7 8 9
-
-[Max heap]
-Insert order: 5 3 8 1 9 2 7 4 6
-MaxHeap (size=9, capacity=16): 9 8 7 6 3 2 5 1 4
-
-MaxHeap Tree Structure:
-        9
-      8  7
-  6  3  2  5
-  1  4
-
-Pop order: 9 8 7 6 5 4 3 2 1
-
-[Floyd build]
-Input array: 3 1 6 5 2 4
-Result: MinHeap (size=6, capacity=6): 1 2 4 5 3 6
-
-MinHeap Tree Structure:
-      1
-    2  4
-  5  3  6
-
-[Heap sort]
-Input array: 64 34 25 12 22 11 90
-Ascending: 11 12 22 25 34 64 90
-Descending: 90 64 34 25 22 12 11
-
-[Remove at index]
-MinHeap (size=9, capacity=16): 1 3 2 4 9 8 7 5 6
-Removed element at index 3: 4
-MinHeap (size=8, capacity=16): 1 3 2 5 9 8 7 6
-
-MinHeap Tree Structure:
-        1
-    3  2
-  5  9  8  7
-6
-
-
-=== All tests finished ===
-```
+If you want to change the code, run `test_heap` first and make sure `-Wall -Wextra` stays clean. If a public interface changes, update the header comments, the tests, and both READMEs. A short commit message explaining what changed and why is enough.
 
 ## Author
 
-**Ailan Anjuxi (谙弆悕博士)**
+Ailan Anjuxi (谙弆悕博士)
 
-- Email: [anjuxi.ME@outlook.com](mailto:anjuxi.ME@outlook.com)
-- SIP: [sip:anjuxi@sip.linphone.org](sip:anjuxi@sip.linphone.org)
+📫 Email: anjuxi.ME@outlook.com
 
----
-
-*This project is for learning and teaching. Discussion is welcome.*
+📞 SIP: sip:anjuxi@sip.linphone.org
